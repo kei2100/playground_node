@@ -1,10 +1,11 @@
 var mqtt = require('mqtt');
 
+var self = this;
+
 mqtt.createServer(function (client) {
   client.on('connect', function (packet) {
+    client.id = packet.clientId;
     client.connack({returnCode: 0});
-
-    console.log('connected:' + client.id);
   });
 
   client.on('publish', function (packet) {
@@ -12,7 +13,6 @@ mqtt.createServer(function (client) {
   });
 
   client.on('subscribe', function (packet) {
-    console.log('subscribed:' + client.id);
   });
 
   client.on('pingreq', function (packet) {
@@ -30,5 +30,4 @@ mqtt.createServer(function (client) {
     client.stream.end();
     console.dir(err);
   });
-
-}).listen(process.argv[2] || 11883);
+}).listen(process.argv[2] || 1883);
