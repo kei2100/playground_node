@@ -15,7 +15,7 @@ function HashRing(nodes, vnc) {
 
   this.nodeMap_ = this.createNodeMap_(nodes, vnc);
   this.nodeMapKeys_ = Object.keys(this.nodeMap_).sort();
-}
+};
 
 module.exports.HashRing = HashRing;
 
@@ -37,7 +37,7 @@ HashRing.prototype.getState = function () {
     nodeMap: this.nodeMap_,
     nodeMapKeys: this.nodeMapKeys_
   };
-}
+};
 
 /**
  * 与えられたキーに対応するノードを取得します。
@@ -72,7 +72,7 @@ HashRing.prototype.getNode = function (key) {
   } else {
     return this.nodeMap_[this.nodeMapKeys_[head]];
   }
-}
+};
 
 /**
  * ノードとハッシュキーのマッピングを生成します。
@@ -94,7 +94,7 @@ HashRing.prototype.createNodeMap_ = function (nodes, vnc) {
   }
 
   return nodeMap;
-}
+};
 
 /**
  * キーからハッシュ値を取得します。
@@ -106,5 +106,5 @@ HashRing.prototype.getHash_ = function (hashKey) {
   return crypto.createHash('md5')
     .update(String(hashKey))
     .digest('hex');
-}
+};
 
