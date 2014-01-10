@@ -1,43 +1,75 @@
+/**
+ * @fileOverview ChatServer using MQTT
+ */
+
+/**
+ * Requires 3rd party
+ */
 var mqtt = require('mqtt');
 
+/**
+ * Requires
+ */
+var Const = require('./chat_constant.js'),
+    TopicManager = require('./topic_manager');
+
+/**
+ * ChatServer
+ * @constructor
+ */
 function ChatServer () {
   this.topicManager_ = new TopicManager();
-  this.clients = {};
   this.mqttServer_ = undefined;
 }
 
-module.exports.ChatServer = ChatServer;
+module.exports = ChatServer;
 
+/**
+ * サーバを開始します
+ * @param {Object} [opt_config] config includes:
+ *  {number} port - Listen port
+ */
 ChatServer.prototype.start = function (opt_config) {
   var self = this;
   var port = (opt_config && opt_config.port) || 1883;
 
   self.mqttServer_ = mqtt.createServer(function (client) {
-    client.on('connect', function (packet) {
+    client.on('connect', function(packet) {
+      console.log('on connect!');
       self.onConnect.call(self, client, packet);
     });
 
-    client.on('publish', function (packet) {
+    client.on('publish', function(packet) {
+      console.log('on publish!');
       self.onPublish.call(self, client, packet);
     });
 
-    client.on('subscribe', function (packet) {
+    client.on('subscribe', function(packet) {
+      console.log('on subscribe!');
       self.onSubscribe.call(self, client, packet);
     });
 
-    client.on('pingreq', function (packet) {
+    client.on('unsubscribe', function(packet) {
+      console.log('on unsubscribe!');
+      self.onUnsubscribe.call(self, client, packet);
+    });
+
+    client.on('pingreq', function(packet) {
       self.onPingreq.call(self, client, packet);
     });
 
-    client.on('disconnect', function (packet) {
+    client.on('disconnect', function(packet) {
+      console.log('on disconnect!');
       self.onDisconnect.call(self, client, packet);
     });
 
-    client.on('close', function (err) {
+    client.on('close', function(err) {
+      console.log('on close!');
       self.onClose.call(self, client, err);
     });
 
-    client.on('error', function (err) {
+    client.on('error', function(err) {
+      console.log('on error!');
       self.onError.call(self, client, err);
     });
   });
@@ -46,8 +78,8 @@ ChatServer.prototype.start = function (opt_config) {
 };
 
 /**
- *
- * @param client
+ * CONNECTコマンドメッセージ受信時
+ * @param {MqttConnection} client
  * @param packet
  * @protected
  */
@@ -55,43 +87,35 @@ ChatServer.prototype.onConnect = function (client, packet) {
   client.id = packet.clientId;
   client.subscriptions = [];
 
-  this.clients[client.id] = client;
   client.connack({returnCode: 0});
 };
 
 /**
- *
- * @param client
+ * PUBLISHコマンドメッセージ受信時
+ * @param {MqttConnection} client
  * @param packet
  * @protected
  */
 ChatServer.prototype.onPublish = function (client, packet) {
-  var subscribers = this.topicManager_.getSubscribers(packet.topic);
 
+  // TODO Persistence
+  client.puback({messageId: packet.messageId});
+
+  var subscribers = this.topicManager_.getSubscribers(packet.topic);
   subscribers.forEach(function (subscriber) {
     subscriber.publish(
       {
         topic: packet.topic,
         payload: packet.payload,
-        qos: 0
+        qos: Const.MqttQoS.LV0
       }
-    )
-  }, this);
+    );
+  });
 };
 
 /**
- *
- * @param client
- * @param packet
- * @protected
- */
-ChatServer.prototype.onPuback = function (client, packet) {
-  ;
-};
-
-/**
- *
- * @param client
+ * SUBSCRIBEコマンドメッセージ受信時
+ * @param {MqttConnection} client
  * @param packet
  * @protected
  */
@@ -101,45 +125,36 @@ ChatServer.prototype.onSubscribe = function (client, packet) {
   packet.subscriptions.forEach(function (subscription) {
     client.subscriptions.push(subscription.topic);
     this.topicManager_.addSubscriber(client, subscription.topic);
-    granted.push(1); // TODO const
+    granted.push(Const.MqttQoS.LV0);
   }, this);
 
   client.suback({messageId: packet.messageId, granted: granted});
 };
 
 /**
- *
- * @param client
- * @param packet
- * @protected
- */
-ChatServer.prototype.onSuback = function (client, packet) {
-  ; // 基本的に受け取ることはないコマンドメッセージ
-};
-
-/**
- *
- * @param client
+ * UNSUBSCRIBEコマンドメッセージ受信時
+ * @param {MqttConnection} client
  * @param packet
  * @protected
  */
 ChatServer.prototype.onUnsubscribe = function (client, packet) {
-  this.topicManager_.removeSubscriber(client, packet.unsubscriptions);
+  var subscriptions = client.subscriptions;
+  var unsubscriptions = packet.unsubscriptions;
+
+  this.topicManager_.removeSubscriber(client, unsubscriptions);
+
+  unsubscriptions.forEach(function (unsubTopic) {
+    subscriptions = subscriptions.filter(function (subTopic) {
+      return subTopic !== unsubTopic;
+    });
+  }, this);
+
+  client.unsuback({messageId: packet.messageId});
 };
 
 /**
- *
- * @param client
- * @param packet
- * @protected
- */
-ChatServer.prototype.onUnsuback = function (client, packet) {
-  ; // 基本的に受け取ることはないコマンドメッセージ
-};
-
-/**
- *
- * @param client
+ * PINGREQコマンドメッセージ受信時
+ * @param {MqttConnection} client
  * @param packet
  * @protected
  */
@@ -148,18 +163,8 @@ ChatServer.prototype.onPingreq = function (client, packet) {
 };
 
 /**
- *
- * @param client
- * @param packet
- * @protected
- */
-ChatServer.prototype.onPingresp = function (client, packet) {
-  ; // 基本的に受け取ることはないメッセージ
-};
-
-/**
- *
- * @param client
+ * DISCONNECTコマンドメッセージ受信時
+ * @param {MqttConnection} client
  * @param packet
  * @protected
  */
@@ -168,60 +173,23 @@ ChatServer.prototype.onDisconnect = function (client, packet) {
 };
 
 /**
- *
- * @param client
+ * ソケットが閉じた時
+ * @param {MqttConnection} client
  * @param err
  * @protected
  */
 ChatServer.prototype.onClose = function (client, err) {
-  var subscriptions = this.clients[client.id].subscriptions;
+  var subscriptions = client.subscriptions;
   this.topicManager_.removeSubscriber(client, subscriptions);
-
-  delete this.clients[client.id];
 };
 
 /**
- *
- * @param client
+ * 通信エラーが発生した場合。closeイベントがこの後呼ばれます。
+ * @param {MqttConnection} client
  * @param err
  * @protected
  */
 ChatServer.prototype.onError = function (client, err) {
   client.stream.end();
   console.dir(err);
-};
-
-
-function TopicManager() {
-  this.topics_ = {};
-};
-
-TopicManager.prototype.getSubscribers = function (topic) {
-  var subscribers = [];
-  var clientMap = this.topics_[topic];
-
-  for (var clientId in clientMap) {
-    subscribers.push(clientMap[clientId]);
-  }
-
-  return subscribers;
-};
-
-TopicManager.prototype.addSubscriber = function (client, topic) { // TODO reverse
-  if (this.topics_[topic] === undefined) {
-    this.topics_[topic] = {};
-  }
-  this.topics_[topic][client.id] = client;
-};
-
-TopicManager.prototype.removeSubscriber = function (client, topics) {  // TODO reverse
-  topics.forEach(function (topic) {
-    if (this.topics_[topic] !== undefined) {
-      delete this.topics_[topic][client.id];
-    }
-
-    if (Object.keys(this.topics_[topic]).length === 0) {
-      delete this.topics_[topic];
-    }
-  }, this);
 };

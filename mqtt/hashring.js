@@ -1,23 +1,30 @@
+/**
+ * @fileOverview コンシステント・ハッシングのためのハッシュリング
+ */
+
+/**
+ * Requires Node core module
+ */
 var crypto = require('crypto');
 
 /**
- * コンシステント・ハッシングのためのハッシュリングを構築します。
+ * ハッシュリング
  *
  * @param {Array} nodes ノードの配列
+ *  配列要素はそれぞれ異なる要素であり、
+ *  それぞれ異なる値を出力するtoStringメソッドを実装したオブジェクトであること。
  * @param {number} vnc Virtual Node Count (仮想ノードの数)。１以上の値を指定すること。
  * @constructor
  */
 function HashRing(nodes, vnc) {
-  // TODO validation
-
   this.nodes_ = nodes;
   this.vnc_ = vnc;
 
   this.nodeMap_ = this.createNodeMap_(nodes, vnc);
   this.nodeMapKeys_ = Object.keys(this.nodeMap_).sort();
-};
+}
 
-module.exports.HashRing = HashRing;
+module.exports = HashRing;
 
 /**
  * ハッシュリングの状態を取得します。
@@ -46,8 +53,6 @@ HashRing.prototype.getState = function () {
  * @returns {*} 対応するノード
  */
 HashRing.prototype.getNode = function (key) {
-  // TODO validation, write jsdoc when nodes empty.
-
   var hash = this.getHash_(key);
   var lastIndex = this.nodeMapKeys_.length - 1;
   var head = 0;
@@ -88,7 +93,7 @@ HashRing.prototype.createNodeMap_ = function (nodes, vnc) {
   for (var i = 0; i < nodes.length; i++) {
     for (var j = 0; j < vnc; j++) {
       var node = nodes[i];
-      var hash = this.getHash_(node + '-' + j);
+      var hash = this.getHash_(String(node) + '-' + j);
       nodeMap[hash] = node;
     }
   }
